@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react';
 
-import {
-  ConfigMapModel,
-  modelToGroupVersionKind,
-  UserModel,
-} from '@kubevirt-ui-ext/kubevirt-api/console';
+import { ConfigMapModel, modelToGroupVersionKind } from '@kubevirt-ui-ext/kubevirt-api/console';
 import { IoK8sApiCoreV1ConfigMap } from '@kubevirt-ui-ext/kubevirt-api/kubernetes';
+import useConsoleUser from '@kubevirt-utils/hooks/useConsoleUser/useConsoleUser';
+import { getKubevirtUserSettingsKey } from '@kubevirt-utils/hooks/useConsoleUser/utils';
 import { operatorNamespaceSignal } from '@kubevirt-utils/store/operatorNamespace';
 import { isEmpty } from '@kubevirt-utils/utils/utils';
 import useK8sWatchData from '@multicluster/hooks/useK8sWatchData';
@@ -22,13 +20,11 @@ const useKubevirtUserSettings: UseKubevirtUserSettings = (key, cluster) => {
   const [settingsInitialized, setSettingsInitialized] = useState<boolean>(false);
   const operatorNamespace = operatorNamespaceSignal.value;
 
-  const [user, loadedUser, errorUser] = useK8sWatchData<IoK8sApiCoreV1ConfigMap>({
-    cluster,
-    groupVersionKind: modelToGroupVersionKind(UserModel),
-    name: '~',
-  });
+  // The console resolves the user from the token on every cluster; the
+  // user.openshift.io `users/~` object does not exist with external OIDC.
+  const [user, loadedUser] = useConsoleUser();
 
-  const userName = user?.metadata?.uid || user?.metadata?.name?.replace(/[^-._a-zA-Z0-9]+/g, '-');
+  const userName = getKubevirtUserSettingsKey(user);
 
   const [userConfigMap, loadedConfigMap, configMapError] = useK8sWatchData<IoK8sApiCoreV1ConfigMap>(
     operatorNamespace &&
@@ -41,7 +37,7 @@ const useKubevirtUserSettings: UseKubevirtUserSettings = (key, cluster) => {
   );
 
   const loadedCM = (loadedConfigMap || !isEmpty(configMapError)) && !isEmpty(operatorNamespace);
-  const loadedUsr = loadedUser || !isEmpty(errorUser);
+  const loadedUsr = loadedUser;
 
   useEffect(() => {
     if (!loadedCM || !loadedUsr) return;
@@ -85,7 +81,7 @@ const useKubevirtUserSettings: UseKubevirtUserSettings = (key, cluster) => {
     key ? userSettings?.[key] : userSettings,
     userSettings && updateUserSetting,
     !loading && settingsInitialized,
-    error || errorUser || configMapError,
+    error || configMapError,
   ];
 };
 
